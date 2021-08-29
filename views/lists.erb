@@ -1,0 +1,12 @@
+<ul id="lists">
+  <% sort(@lists) do |list, index| %>
+    <%= create_tag(index, "<li >") %>
+      <h2><a href="/lists/<%= index %>"><%= list[:name] %></a></h2>
+      <p><%= uncompleted_items(index) %>/<%= list[:items].size %><p>
+    </li>
+  <% end %>
+</ul>
+
+<% content_for :header_links do %>
+  <a class="add" href="/lists/add">Add Item</a>
+<% end %>

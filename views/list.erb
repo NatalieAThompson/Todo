@@ -1,0 +1,54 @@
+<%= create_tag(@num, "<section id=\"todos\">") %>
+  <header>
+    <h2><%= @name %></h2>
+    <ul>
+      <li>
+        <form action="/lists/<%= @num %>/list/complete_all" method="post">
+          <button class="check" type="submit">Complete All</button>
+        </form>
+      </li>
+      <li>
+        <a class="edit" href="/lists/<%= @num %>/change_name">Change Name</a>
+      </li>
+    </ul>
+  </header>
+  <ul>
+
+  <% sort_items(@current_list_items) do |item, index| %>
+    <% if list_status?(@num, index) %>
+      <li class="complete">
+    <% else %>
+      <li>
+    <% end %>
+
+      <form action="/lists/<%= @num %>/list/<%= index %>/complete" method="post" class="check">
+        <input type="hidden" name="completed" value="" />
+        <button type="submit">Complete</button>
+      </form>
+
+      <h3><%= item[:name] %></h3>
+      <form action="/lists/<%= @num %>/remove_todo/<%= index %>" method="post" class="delete">
+        <button type="submit">Delete</button>
+      </form>
+    </li>
+  <% end %>
+</ul>
+</section>
+
+<form action="/lists/<%= @num %>/add_todo" method="post">
+  <dl>
+    <dt>
+      <label for="todo">Enter a new todo item:</label>
+    </dt>
+    <dd>
+      <input name="todo" id="todo" placeholder="Something to do" type="text" value="">
+    </dd>
+  </dl>
+  <fieldset class="actions">
+    <input type="submit" value="Add">
+  </fieldset>
+</form>
+
+<% content_for :header_links do %>
+  <a class="list" href="/lists">All Lists</a>
+<% end %>
