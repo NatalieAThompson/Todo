@@ -5,8 +5,17 @@ require "tilt/erubis"
 
 
 configure do
+  set :erb, :escape_html => true
   enable :sessions
   set :sessions_secret, 'secret'
+end
+
+def load_list(index)
+  list = session[:lists][index] if index && session[:lists][index]
+  return list if list
+
+  session[:error] = "The specified list was not found."
+  redirect "/lists"
 end
 
 before do
@@ -91,7 +100,8 @@ get "/lists/add" do
 end
 
 get "/lists/:number" do |num|
-  redirect ('/lists') unless session[:lists].length > num.to_i
+  load_list(num.to_i)
+
   @name = session[:lists][num.to_i][:name]
   @num = num
   @current_list_items = session[:lists][num.to_i][:items]
@@ -123,12 +133,14 @@ post "/lists" do
 end
 
 get "/lists/:number/change_name" do |num|
+  load_list(num.to_i)
   @num = num
   @current_list = session[:lists][0][:name]
   erb :rename
 end
 
 post "/lists/:number/change_name" do |num|
+  load_list(num.to_i)
   list_name = params[:list_name].strip
   @num = num
 
@@ -144,23 +156,27 @@ post "/lists/:number/change_name" do |num|
 end
 
 post "/lists/:number/delete" do |num|
+  load_list(num.to_i)
   session[:lists].delete_at(num.to_i)
   session[:success] = "The list has been deleted."
   redirect("/lists")
 end
 
 post "/lists/:number/add_todo" do |num|
+  load_list(num.to_i)
   session[:lists][num.to_i][:items] << {name: params[:todo]}
   redirect("/lists/#{num}")
 end
 
 post "/lists/:number/remove_todo/:element" do |num, ele|
+  load_list(num.to_i)
   session[:lists][num.to_i][:items].delete_at(ele.to_i)
   session[:success] = "The todo has been deleted."
   redirect("/lists/#{num}")
 end
 
 post "/lists/:number/list/:element/complete" do |num, ele|
+  load_list(num.to_i)
   if list_status?(num.to_i, ele.to_i)
     session[:lists][num.to_i][:items][ele.to_i][:status] = nil
   else
@@ -171,6 +187,7 @@ post "/lists/:number/list/:element/complete" do |num, ele|
 end
 
 post "/lists/:number/list/complete_all" do |num|
+  load_list(num.to_i)
   session[:lists][num.to_i][:items].each do |item|
     item[:status] = "complete"
   end
