@@ -209,19 +209,15 @@ post "/lists/:number/list/:element/complete" do |num, ele|
   load_list(num.to_i)
 
   items = session[:lists].select { |list| list[:id] == num.to_i }[0][:items]
-  todo = items.select { |todo| todo[:id] == ele.to_i}
+  todo = items.select { |todo| todo[:id] == ele.to_i}[0]
+  p "This is an item: #{items}"
+  p "This is the specific todo: #{todo}"
 
-  items.each.with_index do |item, index|
-    if ele.to_i == item[:id]
-      if list_status?(todo[0])
-        session[:lists][num.to_i][:items][index][:status] = nil
-      else
-        session[:lists][num.to_i][:items][index][:status] = "complete"
-      end
-    end
+  if todo[:status]
+    todo[:status] = nil
+  else
+    todo[:status] = "complete"
   end
-
-
 
   redirect("/lists/#{num}")
 end
@@ -237,5 +233,3 @@ post "/lists/:number/list/complete_all" do |num|
 
   redirect("/lists/#{num}")
 end
-
-# Update the 2/4 items left to do thing
