@@ -1,8 +1,9 @@
 <ul id="lists">
-  <% sort(@lists) do |list, index| %>
-    <%== create_tag(index, "<li >") %>
-      <h2><a href="/lists/<%= index %>"><%= list[:name] %></a></h2>
-      <p><%= uncompleted_items(index) %>/<%= list[:items].size %><p>
+  <% sort(@lists) do |list| %>
+    <% p "This is a sorted list #{list}" %>
+    <%== create_tag(list[:id], "<li >") %>
+      <h2><a href="/lists/<%= list[:id] %>"><%= list[:name] %></a></h2>
+      <p><%= uncompleted_items(list[:id]) %>/<%= list[:items].size %><p>
     </li>
   <% end %>
 </ul>
