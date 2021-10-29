@@ -1,7 +1,8 @@
 require "sinatra"
-require "sinatra/reloader" if development?
 require "sinatra/content_for"
 require "tilt/erubis"
+
+require_relative "database_persistence"
 
 configure do
   set :erb, escape_html: true
@@ -9,43 +10,46 @@ configure do
   set :sessions_secret, 'secret'
 end
 
-def load_list(list_num)
-  if list_num && session[:lists].find { |list| list[:id] == list_num.to_i }
-    list = session[:lists].select { |list| list[:id] == list_num.to_i }[0]
-  end
-  return list if list
-
-  session[:error] = "The specified list was not found."
-  redirect "/lists"
+configure(:development) do
+  require "sinatra/reloader"
+  also_reload "database_persistence.rb"
 end
 
 before do
-  session[:lists] ||= []
+  @storage = DatabasePersistence.new
 end
 
 helpers do
   # return true if complete, false if not complete
   def list_status?(item)
-    !!(item[:status])
+    p "I am inside list_status?: #{item}"
+    item[:status] == "t"
   end
 
   def finished?(list)
     list_complete?(list) && !empty?(list)
   end
 
+  def load_list(list_num)
+    if list_num && @storage.list_exsits?(list_num)
+      list = @storage.find_list(list_num)
+    end
+    return list if list
+
+    session[:error] = "The specified list was not found."
+    redirect "/lists"
+  end
+
   def list_complete?(list_num)
-    current_list = session[:lists].select { |list| list[:id] == list_num.to_i }[0][:items]
-    # I need to look within the current_list array for the list with an :id equal to list_num
-    # [list_num.to_i][:items]
+    current_list = @storage.find_list_items(list_num)
 
     current_list.all? do |item|
-      item[:status] == "complete"
+      item[:status] == "t"
     end
   end
 
   def empty?(list_num)
-    current_list = session[:lists].select { |list| list[:id] == list_num.to_i }[0][:items].empty?
-    # session[:lists][list.to_i][:items].empty?
+    current_list = @storage.find_list_items(list_num).empty?
   end
 
   def create_tag(list_num, string)
@@ -57,38 +61,28 @@ helpers do
   end
 
   def uncompleted_items(list_num)
-    current_list = session[:lists].select { |list| list[:id] == list_num.to_i }[0][:items]
+    current_list = @storage.find_list_items(list_num)
     current_list.select do |item|
       item[:status] != "complete"
     end.size
   end
 
   def sort(lists)
-    # lists.each_with_index do |list, index|
-    #   list[:index] = index
-    # end
-
     finished, unfinished = lists.partition do |list|
       finished?(list[:id])
     end
 
     (unfinished + finished).each do |list|
-      # yield(list, list[:index])
       yield(list)
     end
   end
 
   def sort_items(items)
-    # items.each.with_index do |item, index|
-    #   item[:index] = index
-    # end
-
     finished, unfinished = items.partition do |item|
       item[:status] == "complete"
     end
 
     (unfinished + finished).each do |item|
-      # yield(item, item[:index])
       yield(item)
     end
   end
@@ -99,7 +93,7 @@ get "/" do
 end
 
 get "/lists" do
-  @lists = session[:lists]
+  @lists = @storage.to_a
 
   erb :lists
 end
@@ -110,28 +104,20 @@ end
 
 get "/lists/:number" do |num|
   load_list(num.to_i)
-
-  current_list = session[:lists].select { |list| list[:id] == num.to_i }[0]
-
-  @name = current_list[:name]
-  @num = current_list[:id]
-  @current_list_items = current_list[:items]
+  @name = @storage.find_list_name(num)
+  @num = num.to_i
+  p @current_list_items = @storage.find_list_items(num)
 
   erb :list
 end
 
 # Return an error message if the name is invalid. Return nil if it is valid
 def error_for(list_name)
-  if session[:lists].any? { |hash| hash[:name] == list_name }
+  if @storage.unique_list_name?(list_name)
     "Pick a unique list name."
   elsif !((1..100).cover? list_name.size)
     "The list name must be between 1 and 100 characters."
   end
-end
-
-def next_id(array)
-  max = array.map { |item| item[:id] }.max || -1
-  max + 1
 end
 
 post "/lists" do
@@ -142,8 +128,7 @@ post "/lists" do
     session[:error] = error
     erb :add
   else
-    id = next_id(session[:lists])
-    session[:lists] << { id: id, name: list_name, items: [] }
+    @storage.add_list(list_name)
     session[:success] = "The list has been created."
     redirect "/lists"
   end
@@ -152,7 +137,7 @@ end
 get "/lists/:number/change_name" do |num|
   load_list(num.to_i)
   @num = num
-  @current_list = session[:lists].select { |list| list[:id] == num.to_i }[0][:name]
+  @current_list = @storage.find_list_name(num)
   erb :rename
 end
 
@@ -166,7 +151,7 @@ post "/lists/:number/change_name" do |num|
     session[:error] = error
     erb :rename
   else
-    session[:lists].select { |list| list[:id] == num.to_i }[0][:name] = params[:list_name]
+    @storage.set_list_name(num, list_name)
     session[:success] = "The list has been updated."
     redirect "/lists/#{num}"
   end
@@ -174,7 +159,8 @@ end
 
 post "/lists/:number/delete" do |num|
   load_list(num.to_i)
-  session[:lists].reject! { |list| list[:id] == num.to_i}
+  @storage.delete_list(num)
+
   if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
     "/lists"
   else
@@ -185,17 +171,14 @@ end
 
 post "/lists/:number/add_todo" do |num|
   load_list(num.to_i)
+  @storage.add_todo(num, params[:todo])
 
-  current_list = session[:lists].select { |list| list[:id] == num.to_i }[0][:items]
-  id = next_id(current_list)
-  current_list << { id: id, name: params[:todo] }
   redirect("/lists/#{num}")
 end
 
 post "/lists/:number/remove_todo/:element" do |num, ele|
   load_list(num.to_i)
-  session[:lists].select { |list| list[:id] == num.to_i }[0][:items].reject! { |item| item[:id] == ele.to_i }
-  # session[:lists][num.to_i][:items].delete_at(ele.to_i)
+  @storage.delete_todo(num, ele)
 
   if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
     status 204 # Successful status code
@@ -207,27 +190,15 @@ end
 
 post "/lists/:number/list/:element/complete" do |num, ele|
   load_list(num.to_i)
-
-  items = session[:lists].select { |list| list[:id] == num.to_i }[0][:items]
-  todo = items.select { |todo| todo[:id] == ele.to_i}[0]
-  p "This is an item: #{items}"
-  p "This is the specific todo: #{todo}"
-
-  if todo[:status]
-    todo[:status] = nil
-  else
-    todo[:status] = "complete"
-  end
+  p "What is completed? #{params["completed"]}"
+  @storage.set_todo_status(num, ele, params["completed"])
 
   redirect("/lists/#{num}")
 end
 
 post "/lists/:number/list/complete_all" do |num|
   load_list(num.to_i)
-
-  session[:lists].select { |list| list[:id] == num.to_i }[0][:items].each do |item|
-    item[:status] = "complete"
-  end
+  @storage.complete_all_todos(num)
 
   session[:success] = "All the todo's have been completed!"
 

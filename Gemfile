@@ -21,6 +21,7 @@ gem 'openssl', '~> 2.1.2'
 gem 'cgi', '~> 0.1.0'
 gem 'strscan', '~> 1.0.3'
 gem 'forwardable', '~> 1.3.1'
+gem 'pg'
 
 group "production" do
   gem "puma"

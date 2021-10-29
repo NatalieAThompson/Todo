@@ -22,7 +22,7 @@
     <% end %>
 
       <form action="/lists/<%= @num %>/list/<%= item[:id] %>/complete" method="post" class="check">
-        <input type="hidden" name="completed" value="" />
+        <input type="hidden" name="completed" value="<%= list_status?(item) %>" />
         <button type="submit">Complete</button>
       </form>
 
