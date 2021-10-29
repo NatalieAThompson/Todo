@@ -19,10 +19,13 @@ before do
   @storage = DatabasePersistence.new
 end
 
+after do
+  @storage.disconnect
+end
+
 helpers do
   # return true if complete, false if not complete
   def list_status?(item)
-    p "I am inside list_status?: #{item}"
     item[:status] == "t"
   end
 

@@ -2,7 +2,15 @@ require "pg"
 
 class DatabasePersistence
   def initialize
-    @db = PG.connect(dbname: "ls185")
+    @db = if Sinatra::Base.production?
+            PG.connect(ENV['DATABASE_URL'])
+          else
+            PG.connect(dbname: "ls185")
+          end
+  end
+
+  def disconnect
+    @db.close
   end
 
   def query(sql, *params)
